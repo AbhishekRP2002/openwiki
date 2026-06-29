@@ -89,13 +89,13 @@ type ErrorDiagnostic = {
 };
 
 type AppProps = {
-  autoExitOnSuccess?: boolean;
   command: CliCommand;
 };
 
-function App({ autoExitOnSuccess = false, command }: AppProps) {
+function App({ command }: AppProps) {
   const app = useApp();
   const startupModelId = command.kind === "run" ? command.modelId : null;
+  const autoExitOnSuccess = shouldAutoExitStartupRun(command);
   const [sessionModelId, setSessionModelId] = useState<string | null>(
     startupModelId,
   );
@@ -2751,48 +2751,26 @@ if (parsedCommand.kind === "run" && !parsedCommand.dryRun) {
 
 const command = resolveStartupCommand(parsedCommand);
 
-if (argvRequestsOneShot(argv) && command.kind === "error") {
+if (argvRequestsPrint(argv) && command.kind === "error") {
   process.stderr.write(`${command.message}\n`);
   process.exitCode = command.exitCode;
-} else if (shouldRunOnce(command)) {
+} else if (command.kind === "run" && command.print && !command.dryRun) {
   await runPrintCommand(command);
 } else {
-  render(
-    <App
-      autoExitOnSuccess={shouldAutoExitStartupRun(command, argv)}
-      command={command}
-    />,
-  );
+  render(<App command={command} />);
 }
 
 function argvRequestsPrint(argv: string[]): boolean {
   return argv.some((arg) => arg === "-p" || arg === "--print");
 }
 
-function argvRequestsOneShot(argv: string[]): boolean {
-  return argvRequestsPrint(argv) || argv.some(isOneShotArg);
-}
-
-function isOneShotArg(arg: string): boolean {
-  return arg === "--init" || arg === "--update";
-}
-
-function shouldRunOnce(
-  command: CliCommand,
-): command is Extract<CliCommand, { kind: "run" }> {
-  return command.kind === "run" && !command.dryRun && command.print;
-}
-
-function shouldAutoExitStartupRun(
-  command: CliCommand,
-  argv: string[],
-): boolean {
+function shouldAutoExitStartupRun(command: CliCommand): boolean {
   return (
     command.kind === "run" &&
     !command.dryRun &&
     !command.print &&
     command.shouldStart &&
-    argv.some(isOneShotArg)
+    (command.command === "init" || command.command === "update")
   );
 }
 
@@ -2800,8 +2778,7 @@ async function runPrintCommand(
   command: Extract<CliCommand, { kind: "run" }>,
 ): Promise<void> {
   try {
-    let log: RunLogItem[] = [];
-    let nextLogId = 1;
+    const output: string[] = [];
 
     await runOpenWikiAgent(command.command, process.cwd(), {
       debug: isDebugMode(),
@@ -2810,12 +2787,13 @@ async function runPrintCommand(
       threadId: createOpenWikiThreadId(process.cwd()),
       userMessage: command.userMessage,
       onEvent: (event) => {
-        log = appendRunLogEvent(log, event, { current: nextLogId });
-        nextLogId = Math.max(nextLogId, getNextLogId(log));
+        if (event.type === "text" && event.source !== "subgraph") {
+          output.push(event.text);
+        }
       },
     });
 
-    const text = getFinalModelMessage(log);
+    const text = output.join("").trim();
 
     if (text.length > 0) {
       process.stdout.write(`${text}\n`);
@@ -2827,24 +2805,6 @@ async function runPrintCommand(
     writePrintErrorDiagnostics(error);
     process.exitCode = 1;
   }
-}
-
-function getFinalModelMessage(log: RunLogItem[]): string {
-  for (let index = log.length - 1; index >= 0; index -= 1) {
-    const item = log[index];
-
-    if (item.type === "text") {
-      return item.content.trim();
-    }
-  }
-
-  return "";
-}
-
-function getNextLogId(log: RunLogItem[]): number {
-  const lastItem = log.at(-1);
-
-  return lastItem ? lastItem.id + 1 : 1;
 }
 
 function writePrintErrorDiagnostics(error: unknown): void {
