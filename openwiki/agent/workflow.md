@@ -14,7 +14,7 @@ The documentation agent is implemented in `src/agent/`. It takes a command (`cha
 6. Build the system prompt and user prompt.
 7. Create the provider-specific model client (`ChatAnthropic`, `ChatOpenRouter`, or `ChatOpenAI`).
 8. Create a DeepAgents `LocalShellBackend` rooted at the repository with a SQLite checkpointer.
-9. Stream messages and tool events back to the CLI.
+9.  Stream messages and tool events back to the CLI.
 10. For `init` and `update`, compare the post-run content snapshot to the pre-run snapshot. Write `openwiki/.last-update.json` **only if the content changed**.
 
 Chat runs skip metadata writes entirely.
@@ -29,6 +29,8 @@ Chat runs skip metadata writes entirely.
 - **baseten / fireworks / openai-compatible**: `new ChatOpenAI({ apiKey, configuration: { baseURL? }, model })` — OpenAI-compatible clients using the provider's base URL when configured. The `openai-compatible` provider has no default endpoint; its base URL is user-supplied via `OPENAI_COMPATIBLE_BASE_URL` and required (`requiresBaseUrl: true`), which lets OpenWiki target any OpenAI-compatible gateway (for example a LiteLLM gateway fronting upstream providers).
 
 Base URLs are resolved through `resolveProviderBaseUrl()` in `src/constants.ts`, which prefers a provider's alternative base URL environment variable (`baseUrlEnvKey`) over the built-in default before falling back to the SDK's own default endpoint. Providers marked `requiresBaseUrl` are validated at startup by `ensureProviderBaseUrl()`.
+
+Provider retry attempts are resolved through `resolveProviderRetryAttempts()` and passed to the LangChain model client's `maxRetries` option. The value is the number of retries after the first provider request; unset values default to 3 retries.
 
 ## Prompting strategy
 
@@ -76,9 +78,7 @@ That metadata is later used to scope update runs.
 
 ## Model errors
 
-The agent runtime uses only the selected provider and model for a run. If that
-request fails, OpenWiki surfaces the provider error and stops instead of
-retrying with another model.
+The agent runtime uses only the selected provider and model for a run. Transient request failures use the LangChain model client's retry handling, configurable with `OPENWIKI_PROVIDER_RETRY_ATTEMPTS`. If the selected provider/model still fails, OpenWiki surfaces the provider error and stops instead of retrying with another model.
 
 ## Why this matters
 

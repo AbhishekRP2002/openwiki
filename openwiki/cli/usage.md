@@ -68,6 +68,17 @@ Providers and their model options are defined in `PROVIDER_CONFIGS` in `src/cons
 
 The default provider is `openrouter`. `resolveConfiguredProvider()` picks the provider from `OPENWIKI_PROVIDER`, falling back to openrouter if `OPENROUTER_API_KEY` is set, then to `DEFAULT_PROVIDER`.
 
+### Provider retry attempts
+
+Set `OPENWIKI_PROVIDER_RETRY_ATTEMPTS` to override the number of retries after
+the first provider request. The value must be a positive integer:
+
+```bash
+OPENWIKI_PROVIDER_RETRY_ATTEMPTS=3
+```
+
+If the value is unset, OpenWiki defaults to 3 retries.
+
 ### Alternative base URLs
 
 Set `ANTHROPIC_BASE_URL` to route the anthropic provider at an alternative,

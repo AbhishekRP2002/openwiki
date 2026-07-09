@@ -10,6 +10,9 @@ export const ANTHROPIC_BASE_URL_ENV_KEY = "ANTHROPIC_BASE_URL";
 export const OPENROUTER_API_KEY_ENV_KEY = "OPENROUTER_API_KEY";
 export const OPENWIKI_PROVIDER_ENV_KEY = "OPENWIKI_PROVIDER";
 export const OPENWIKI_MODEL_ID_ENV_KEY = "OPENWIKI_MODEL_ID";
+export const OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY =
+  "OPENWIKI_PROVIDER_RETRY_ATTEMPTS";
+export const DEFAULT_PROVIDER_RETRY_ATTEMPTS = 3;
 export const DEFAULT_PROVIDER = "openrouter";
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -216,6 +219,34 @@ export function resolveConfiguredProvider(
     normalizeProvider(env[OPENWIKI_PROVIDER_ENV_KEY]) ??
     (env[OPENROUTER_API_KEY_ENV_KEY] ? "openrouter" : DEFAULT_PROVIDER)
   );
+}
+
+export function resolveProviderRetryAttempts(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const rawRetryAttempts = env[OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY];
+
+  if (rawRetryAttempts === undefined) {
+    return DEFAULT_PROVIDER_RETRY_ATTEMPTS;
+  }
+
+  const retryAttempts = rawRetryAttempts.trim();
+
+  if (!/^[1-9]\d*$/u.test(retryAttempts)) {
+    throw new Error(
+      `Invalid ${OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY}. Expected a positive integer.`,
+    );
+  }
+
+  const parsedRetryAttempts = Number(retryAttempts);
+
+  if (!Number.isSafeInteger(parsedRetryAttempts)) {
+    throw new Error(
+      `Invalid ${OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY}. Expected a positive integer.`,
+    );
+  }
+
+  return parsedRetryAttempts;
 }
 
 export function normalizeModelId(value: string): string {
